@@ -4,9 +4,9 @@ import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
 import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.KeyEvent;
 import java.awt.image.BufferedImage;
 import java.awt.image.WritableRaster;
 import java.io.File;
@@ -20,7 +20,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * What is the simplest thing that can possibly work?
  */
-public class Main implements ChangeListener, DocumentListener {
+public class Main implements ChangeListener {
 
 
     public static final int NWORKERS = 2;
@@ -70,6 +70,12 @@ public class Main implements ChangeListener, DocumentListener {
 
         frame = new JFrame();
         frame.getContentPane().setLayout(new BorderLayout());
+        JMenuBar menuBar = new JMenuBar();
+        JMenu filterMenu = new JMenu("Filter");
+        JMenuItem filterMenuItem = new JMenuItem(new CompileAction());
+        filterMenu.add(filterMenuItem);
+        menuBar.add(filterMenu);
+        frame.setJMenuBar(menuBar);
 
         JSlider slider = new JSlider(-255, 255, 0);
         slider.addChangeListener(this);
@@ -91,7 +97,6 @@ public class Main implements ChangeListener, DocumentListener {
         codeArea.setSize(300, 300);
         codeArea.setMinimumSize(new Dimension(300, 300));
         codeArea.setPreferredSize(new Dimension(300, 300));
-        codeArea.getDocument().addDocumentListener(this);
         frame.getContentPane().add(codeArea, BorderLayout.SOUTH);
         frame.setSize(1000, 800);
         frame.setVisible(true);
@@ -168,18 +173,6 @@ public class Main implements ChangeListener, DocumentListener {
             out.b = v1.b + v;
             out.a = v1.a + v;
         }
-    }
-
-    public void insertUpdate(DocumentEvent e) {
-        recompileFilter();
-    }
-
-    public void removeUpdate(DocumentEvent e) {
-        recompileFilter();
-    }
-
-    public void changedUpdate(DocumentEvent e) {
-        recompileFilter();
     }
 
     public void compileFilter(String source) {
@@ -313,4 +306,15 @@ public class Main implements ChangeListener, DocumentListener {
         }
     }
 
+    private class CompileAction extends AbstractAction {
+        private CompileAction() {
+            super("Compile");
+            int MENU_MASK = Toolkit.getDefaultToolkit().getMenuShortcutKeyMask();
+            putValue(ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.VK_R, MENU_MASK));
+        }
+
+        public void actionPerformed(ActionEvent e) {
+            recompileFilter();
+        }
+    }
 }
