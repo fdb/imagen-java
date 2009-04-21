@@ -22,8 +22,7 @@ public class Main implements ChangeListener {
 
 
     public static final int NWORKERS = 1;
-    private static final int SLOWDOWN = 1000;
-
+    private static final int SLOWDOWN = 1;
 
     ExecutorService service = Executors.newFixedThreadPool(NWORKERS);
 
@@ -48,7 +47,7 @@ public class Main implements ChangeListener {
             workers.add(w);
         }
 
-        imageIn = ImageIO.read(new File("house_m.jpg"));
+        imageIn = ImageIO.read(new File("house_o.jpg"));
         if (imageIn.getType() != BufferedImage.TYPE_INT_ARGB) {
             int width = imageIn.getWidth();
             int height = imageIn.getHeight();
@@ -246,6 +245,12 @@ public class Main implements ChangeListener {
 
         @Override
         public void paint(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g;
+            // Get the width of the view
+            int viewWidth = (int) getBounds().getWidth();
+            int imageWidth = image.getWidth(null);
+            float factor = viewWidth / (float) imageWidth;
+            g2.scale(factor, factor);
             g.drawImage(image, 0, 0, null);
         }
     }
