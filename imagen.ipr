@@ -241,6 +241,9 @@
     <library name="ASM">
       <CLASSES>
         <root url="jar://$PROJECT_DIR$/lib/asm-3.1.jar!/" />
+        <root url="jar://$PROJECT_DIR$/lib/asm-commons-3.1.jar!/" />
+        <root url="jar://$PROJECT_DIR$/lib/asm-util-3.1.jar!/" />
+        <root url="jar://$PROJECT_DIR$/lib/asm-analysis-3.1.jar!/" />
       </CLASSES>
       <JAVADOC />
       <SOURCES>

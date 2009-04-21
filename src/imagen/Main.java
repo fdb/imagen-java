@@ -4,6 +4,8 @@ import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.awt.image.WritableRaster;
@@ -18,7 +20,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * What is the simplest thing that can possibly work?
  */
-public class Main implements ChangeListener {
+public class Main implements ChangeListener, DocumentListener {
 
 
     public static final int NWORKERS = 2;
@@ -31,6 +33,7 @@ public class Main implements ChangeListener {
     BufferedImage imageOut;
     ImageView inView;
     ImageView outView;
+    String source;
 
     long totalTime;
     int invocations;
@@ -38,16 +41,21 @@ public class Main implements ChangeListener {
 
     JFrame frame;
     JLabel averageLabel;
+    JTextArea codeArea;
     public static int filterValue = 0;
+    public PointFilter filter;
 
     public Main() throws IOException {
+        source = "load 1\nload 2\nadd\nreturn\n";
+        compileFilter(source);
+
         workers = new ArrayList<PixelWorker>(NWORKERS);
         for (int i = 0; i < NWORKERS; i++) {
             PixelWorker w = new PixelWorker(null, null, 0, 0);
             workers.add(w);
         }
 
-        imageIn = ImageIO.read(new File("house_o.jpg"));
+        imageIn = ImageIO.read(new File("house_m.jpg"));
         if (imageIn.getType() != BufferedImage.TYPE_INT_ARGB) {
             int width = imageIn.getWidth();
             int height = imageIn.getHeight();
@@ -58,6 +66,7 @@ public class Main implements ChangeListener {
         }
 
         imageOut = process(imageIn);
+
 
         frame = new JFrame();
         frame.getContentPane().setLayout(new BorderLayout());
@@ -77,6 +86,13 @@ public class Main implements ChangeListener {
         split.setDividerLocation(500);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.getContentPane().add(split, BorderLayout.CENTER);
+
+        codeArea = new JTextArea(source);
+        codeArea.setSize(300, 300);
+        codeArea.setMinimumSize(new Dimension(300, 300));
+        codeArea.setPreferredSize(new Dimension(300, 300));
+        codeArea.getDocument().addDocumentListener(this);
+        frame.getContentPane().add(codeArea, BorderLayout.SOUTH);
         frame.setSize(1000, 800);
         frame.setVisible(true);
     }
@@ -154,7 +170,47 @@ public class Main implements ChangeListener {
         }
     }
 
-    public static class PixelWorker implements Callable<Object> {
+    public void insertUpdate(DocumentEvent e) {
+        recompileFilter();
+    }
+
+    public void removeUpdate(DocumentEvent e) {
+        recompileFilter();
+    }
+
+    public void changedUpdate(DocumentEvent e) {
+        recompileFilter();
+    }
+
+    public void compileFilter(String source) {
+        CodeWriter cw = new CodeWriter();
+        Class pointFilterClass = cw.compileCode(source);
+        try {
+            Object obj = pointFilterClass.newInstance();
+            filter = (PointFilter) obj;
+        } catch (ClassCastException e) {
+            e.printStackTrace();
+        } catch (InstantiationException e) {
+            e.printStackTrace();
+        } catch (IllegalAccessException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void recompileFilter() {
+        source = codeArea.getText();
+        try {
+            compileFilter(source);
+            imageOut = process(imageIn);
+            outView.image = imageOut;
+            outView.repaint();
+            averageLabel.setText(String.format("%.5f", calculateAverage()));
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public class PixelWorker implements Callable<Object> {
         int[] inPixels;
         int[] outPixels;
         int offset;
@@ -172,12 +228,14 @@ public class Main implements ChangeListener {
             vec4 outVec = new vec4();
             for (int pos = offset + length - 1; pos >= offset; --pos) {
                 int rgb = inPixels[pos];
-                inVec.a = rgb & 0xff000000;
-                inVec.r = (rgb >> 16) & 0xff;
-                inVec.g = (rgb >> 8) & 0xff;
-                inVec.b = rgb & 0xff;
-                process(inVec, outVec);
-                outPixels[pos] = outVec.a | (outVec.r << 16) | (outVec.g << 8) | outVec.b;
+                // TODO: filterValue should not be here.
+                outPixels[pos] = filter.filter(rgb, filterValue);
+//                inVec.a = rgb & 0xff000000;
+//                inVec.r = (rgb >> 16) & 0xff;
+//                inVec.g = (rgb >> 8) & 0xff;
+//                inVec.b = rgb & 0xff;
+//                process(inVec, outVec);
+//                outPixels[pos] = outVec.a | (outVec.r << 16) | (outVec.g << 8) | outVec.b;
             }
             return null;
         }
