@@ -237,5 +237,16 @@
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
   </component>
+  <component name="libraryTable">
+    <library name="ASM">
+      <CLASSES>
+        <root url="jar://$PROJECT_DIR$/lib/asm-3.1.jar!/" />
+      </CLASSES>
+      <JAVADOC />
+      <SOURCES>
+        <root url="file:///Users/fdb/Java/asm-3.1/src" />
+      </SOURCES>
+    </library>
+  </component>
 </project>
 

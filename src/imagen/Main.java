@@ -21,7 +21,7 @@ import java.util.concurrent.TimeUnit;
 public class Main implements ChangeListener {
 
 
-    public static final int NWORKERS = 1;
+    public static final int NWORKERS = 2;
     private static final int SLOWDOWN = 1;
 
     ExecutorService service = Executors.newFixedThreadPool(NWORKERS);
