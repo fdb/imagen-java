@@ -250,6 +250,14 @@
         <root url="file:///Users/fdb/Java/asm-3.1/src" />
       </SOURCES>
     </library>
+    <library name="JOGL">
+      <CLASSES>
+        <root url="jar://$PROJECT_DIR$/lib/jogl.jar!/" />
+        <root url="jar://$PROJECT_DIR$/lib/gluegen-rt.jar!/" />
+      </CLASSES>
+      <JAVADOC />
+      <SOURCES />
+    </library>
   </component>
 </project>
 
