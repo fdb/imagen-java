@@ -9,20 +9,45 @@ import java.awt.image.BufferedImage;
 import java.awt.image.WritableRaster;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /**
- * What is the simples thing that can possibly work?
+ * What is the simplest thing that can possibly work?
  */
 public class Main implements ChangeListener {
 
 
+    public static final int NWORKERS = 1;
+    private static final int SLOWDOWN = 1000;
+
+
+    ExecutorService service = Executors.newFixedThreadPool(NWORKERS);
+
+    ArrayList<PixelWorker> workers;
     BufferedImage imageIn;
     BufferedImage imageOut;
     ImageView inView;
     ImageView outView;
+
+    long totalTime;
+    int invocations;
+    double average;
+
     JFrame frame;
+    JLabel averageLabel;
+    public static int filterValue = 0;
 
     public Main() throws IOException {
+        workers = new ArrayList<PixelWorker>(NWORKERS);
+        for (int i = 0; i < NWORKERS; i++) {
+            PixelWorker w = new PixelWorker(null, null, 0, 0);
+            workers.add(w);
+        }
+
         imageIn = ImageIO.read(new File("house_m.jpg"));
         if (imageIn.getType() != BufferedImage.TYPE_INT_ARGB) {
             int width = imageIn.getWidth();
@@ -33,14 +58,18 @@ public class Main implements ChangeListener {
             imageIn = convertedImage;
         }
 
-        imageOut = process(imageIn, 0);
+        imageOut = process(imageIn);
 
         frame = new JFrame();
         frame.getContentPane().setLayout(new BorderLayout());
 
         JSlider slider = new JSlider(-255, 255, 0);
         slider.addChangeListener(this);
-        frame.getContentPane().add(slider, BorderLayout.NORTH);
+        averageLabel = new JLabel();
+        JPanel topFlow = new JPanel(new FlowLayout());
+        topFlow.add(slider);
+        topFlow.add(averageLabel);
+        frame.getContentPane().add(topFlow, BorderLayout.NORTH);
 
         inView = new ImageView(imageIn);
         outView = new ImageView(imageOut);
@@ -51,23 +80,26 @@ public class Main implements ChangeListener {
         frame.getContentPane().add(split, BorderLayout.CENTER);
         frame.setSize(1000, 800);
         frame.setVisible(true);
-
     }
 
     public void stateChanged(ChangeEvent e) {
         JSlider slider = (JSlider) e.getSource();
-        int value = slider.getValue();
-        imageOut = process(imageIn, value);
+        filterValue = slider.getValue();
+        imageOut = process(imageIn);
         outView.image = imageOut;
         outView.repaint();
-
+        averageLabel.setText(String.format("%.5f", calculateAverage()));
     }
 
     public static void main(String[] args) throws IOException {
         new Main();
     }
 
-    public static BufferedImage process(BufferedImage inImage, int value) {
+    private double calculateAverage() {
+        return totalTime / (double) invocations;
+    }
+
+    public BufferedImage process(BufferedImage inImage) {
         int width = inImage.getWidth();
         int height = inImage.getHeight();
         BufferedImage outImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
@@ -80,37 +112,78 @@ public class Main implements ChangeListener {
         inPixels = (int[]) inImage.getRaster().getDataElements(0, 0, width, height, null);
         int[] outPixels = new int[inPixels.length];
 
-        vec4 inVec = new vec4();
-        vec4 outVec = new vec4();
-        vec4 addVec = new vec4(value, value, value, 0);
 
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                int index = y * width + x;
+        int totalPixels = inPixels.length;
+        int pixelsPerWorker = inPixels.length / NWORKERS;
+        int offset = 0;
+        int length = pixelsPerWorker;
 
-                int rgb = inPixels[index];
-                inVec.a = rgb & 0xff000000;
-                inVec.r = (rgb >> 16) & 0xff;
-                inVec.g = (rgb >> 8) & 0xff;
-                inVec.b = rgb & 0xff;
-
-                add(inVec, addVec, outVec);
-                outPixels[index] = outVec.a | (outVec.r << 16) | (outVec.g << 8) | outVec.b;
+        for (int i = 0; i < NWORKERS; i++) {
+            if (i == NWORKERS - 1) { // Last worker gets less pixels
+                length = totalPixels - offset - 1;
             }
+            PixelWorker w = workers.get(i);
+            w.inPixels = inPixels;
+            w.outPixels = outPixels;
+            w.offset = offset;
+            w.length = length;
+            offset += pixelsPerWorker;
         }
+
+        long time = System.nanoTime();
+        try {
+            service.invokeAll(workers, 5000, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        time = System.nanoTime() - time;
+        totalTime += time;
+        invocations++;
+
         outRaster.setDataElements(0, 0, width, height, outPixels);
 
         return outImage;
     }
 
-    public static void add(vec4 v1, vec4 v2, vec4 out) {
-        for (int i = 0; i < 200; i++) {
-            out.r = v1.r + v2.r;
-            out.g = v1.g + v2.g;
-            out.b = v1.b + v2.b;
-            out.a = v1.a + v2.a;
+    public static void process(vec4 v1, vec4 out) {
+        int v = filterValue;
+        for (int i = 0; i < SLOWDOWN; i++) {
+            out.r = v1.r + v;
+            out.g = v1.g + v;
+            out.b = v1.b + v;
+            out.a = v1.a + v;
         }
     }
+
+    public static class PixelWorker implements Callable<Object> {
+        int[] inPixels;
+        int[] outPixels;
+        int offset;
+        int length;
+
+        public PixelWorker(int[] inPixels, int[] outPixels, int offset, int length) {
+            this.inPixels = inPixels;
+            this.outPixels = outPixels;
+            this.offset = offset;
+            this.length = length;
+        }
+
+        public Object call() throws Exception {
+            vec4 inVec = new vec4();
+            vec4 outVec = new vec4();
+            for (int pos = offset + length - 1; pos >= offset; --pos) {
+                int rgb = inPixels[pos];
+                inVec.a = rgb & 0xff000000;
+                inVec.r = (rgb >> 16) & 0xff;
+                inVec.g = (rgb >> 8) & 0xff;
+                inVec.b = rgb & 0xff;
+                process(inVec, outVec);
+                outPixels[pos] = outVec.a | (outVec.r << 16) | (outVec.g << 8) | outVec.b;
+            }
+            return null;
+        }
+    }
+
 
     public static class vec4 {
         public int r, g, b, a;
